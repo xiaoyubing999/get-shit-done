@@ -20,33 +20,48 @@
   - [Quick Mode](#10-quick-mode)
   - [Autonomous Mode](#11-autonomous-mode)
   - [Freeform Routing](#12-freeform-routing)
+  - [Note Capture](#13-note-capture)
+  - [Auto-Advance (Next)](#14-auto-advance-next)
 - [Quality Assurance Features](#quality-assurance-features)
-  - [Nyquist Validation](#13-nyquist-validation)
-  - [Plan Checking](#14-plan-checking)
-  - [Post-Execution Verification](#15-post-execution-verification)
-  - [Node Repair](#16-node-repair)
-  - [Health Validation](#17-health-validation)
+  - [Nyquist Validation](#15-nyquist-validation)
+  - [Plan Checking](#16-plan-checking)
+  - [Post-Execution Verification](#17-post-execution-verification)
+  - [Node Repair](#18-node-repair)
+  - [Health Validation](#19-health-validation)
+  - [Cross-Phase Regression Gate](#20-cross-phase-regression-gate)
+  - [Requirements Coverage Gate](#21-requirements-coverage-gate)
 - [Context Engineering Features](#context-engineering-features)
-  - [Context Window Monitoring](#18-context-window-monitoring)
-  - [Session Management](#19-session-management)
-  - [Multi-Agent Orchestration](#20-multi-agent-orchestration)
-  - [Model Profiles](#21-model-profiles)
+  - [Context Window Monitoring](#22-context-window-monitoring)
+  - [Session Management](#23-session-management)
+  - [Session Reporting](#24-session-reporting)
+  - [Multi-Agent Orchestration](#25-multi-agent-orchestration)
+  - [Model Profiles](#26-model-profiles)
 - [Brownfield Features](#brownfield-features)
-  - [Codebase Mapping](#22-codebase-mapping)
+  - [Codebase Mapping](#27-codebase-mapping)
 - [Utility Features](#utility-features)
-  - [Debug System](#23-debug-system)
-  - [Todo Management](#24-todo-management)
-  - [Statistics Dashboard](#25-statistics-dashboard)
-  - [Update System](#26-update-system)
-  - [Settings Management](#27-settings-management)
-  - [Test Generation](#28-test-generation)
+  - [Debug System](#28-debug-system)
+  - [Todo Management](#29-todo-management)
+  - [Statistics Dashboard](#30-statistics-dashboard)
+  - [Update System](#31-update-system)
+  - [Settings Management](#32-settings-management)
+  - [Test Generation](#33-test-generation)
 - [Infrastructure Features](#infrastructure-features)
-  - [Git Integration](#29-git-integration)
-  - [CLI Tools](#30-cli-tools)
-  - [Multi-Runtime Support](#31-multi-runtime-support)
-  - [Hook System](#32-hook-system)
-  - [Developer Profiling](#33-developer-profiling)
-  - [Execution Hardening](#34-execution-hardening)
+  - [Git Integration](#34-git-integration)
+  - [CLI Tools](#35-cli-tools)
+  - [Multi-Runtime Support](#36-multi-runtime-support)
+  - [Hook System](#37-hook-system)
+  - [Developer Profiling](#38-developer-profiling)
+  - [Execution Hardening](#39-execution-hardening)
+  - [Verification Debt Tracking](#40-verification-debt-tracking)
+- [v1.27 Features](#v127-features)
+  - [Fast Mode](#41-fast-mode)
+  - [Cross-AI Peer Review](#42-cross-ai-peer-review)
+  - [Backlog Parking Lot](#43-backlog-parking-lot)
+  - [Persistent Context Threads](#44-persistent-context-threads)
+  - [PR Branch Filtering](#45-pr-branch-filtering)
+  - [Security Hardening](#46-security-hardening)
+  - [Multi-Repo Workspace Support](#47-multi-repo-workspace-support)
+  - [Discussion Audit Trail](#48-discussion-audit-trail)
 
 ---
 
@@ -70,7 +85,7 @@
 **Produces:**
 | Artifact | Description |
 |----------|-------------|
-| `PROJECT.md` | Project vision, constraints, technical decisions |
+| `PROJECT.md` | Project vision, constraints, technical decisions, evolution rules |
 | `REQUIREMENTS.md` | Scoped requirements with unique IDs (REQ-XX) |
 | `ROADMAP.md` | Phase breakdown with status tracking and requirement mapping |
 | `STATE.md` | Initial project state with position, decisions, metrics |
@@ -171,6 +186,7 @@
 - REQ-PLAN-06: System MUST support `--skip-research` flag to bypass research phase
 - REQ-PLAN-07: System MUST prompt user to run `/gsd:ui-phase` if frontend phase detected and no UI-SPEC.md exists (UI safety gate)
 - REQ-PLAN-08: System MUST include Nyquist validation mapping when `workflow.nyquist_validation` is enabled
+- REQ-PLAN-09: System MUST verify all phase requirements are covered by at least one plan before planning completes (requirements coverage gate)
 
 **Produces:**
 | Artifact | Description |
@@ -220,6 +236,7 @@
 - REQ-EXEC-06: System MUST run post-execution verifier to check phase goals were met
 - REQ-EXEC-07: System MUST support git branching strategies (`none`, `phase`, `milestone`)
 - REQ-EXEC-08: System MUST invoke node repair operator on task verification failure (when enabled)
+- REQ-EXEC-09: System MUST run prior phases' test suites before verification to catch cross-phase regressions
 
 **Produces:**
 | Artifact | Description |
@@ -238,8 +255,13 @@
 - Reads PLAN.md with full task instructions
 - Has access to PROJECT.md, STATE.md, CONTEXT.md, RESEARCH.md
 - Commits each task atomically with structured commit messages
+- Uses `--no-verify` on commits during parallel execution to avoid build lock contention
 - Handles checkpoint types: `auto`, `checkpoint:human-verify`, `checkpoint:decision`, `checkpoint:human-action`
 - Reports deviations from plan in SUMMARY.md
+
+**Parallel Safety:**
+- **Pre-commit hooks**: Skipped by parallel agents (`--no-verify`), run once by orchestrator after each wave
+- **STATE.md locking**: File-level lockfile prevents concurrent write corruption across agents
 
 ---
 
@@ -258,6 +280,25 @@
 - REQ-VERIFY-06: System MUST produce UAT.md with pass/fail results
 
 **Produces:** `{phase}-UAT.md` — User acceptance test results, plus fix plans if issues found
+
+---
+
+### 6.5. Ship
+
+**Command:** `/gsd:ship [N] [--draft]`
+
+**Purpose:** Bridge local completion → merged PR. After verification passes, push branch, create PR with auto-generated body from planning artifacts, optionally trigger review, and track in STATE.md.
+
+**Requirements:**
+- REQ-SHIP-01: System MUST verify phase has passed verification before shipping
+- REQ-SHIP-02: System MUST push branch and create PR via `gh` CLI
+- REQ-SHIP-03: System MUST auto-generate PR body from SUMMARY.md, VERIFICATION.md, and REQUIREMENTS.md
+- REQ-SHIP-04: System MUST update STATE.md with shipping status and PR number
+- REQ-SHIP-05: System MUST support `--draft` flag for draft PRs
+
+**Prerequisites:** Phase verified, `gh` CLI installed and authenticated, work on feature branch
+
+**Produces:** GitHub PR with rich body, STATE.md updated
 
 ---
 
@@ -387,9 +428,34 @@
 
 ---
 
+### 14. Auto-Advance (Next)
+
+**Command:** `/gsd:next`
+
+**Purpose:** Automatically detect current project state and advance to the next logical workflow step, eliminating the need to remember which phase/step you're on.
+
+**Requirements:**
+- REQ-NEXT-01: System MUST read STATE.md, ROADMAP.md, and phase directories to determine current position
+- REQ-NEXT-02: System MUST detect whether discuss, plan, execute, or verify is needed
+- REQ-NEXT-03: System MUST invoke the correct command automatically
+- REQ-NEXT-04: System MUST suggest `/gsd:new-project` if no project exists
+- REQ-NEXT-05: System MUST suggest `/gsd:complete-milestone` when all phases are complete
+
+**State Detection Logic:**
+| State | Action |
+|-------|--------|
+| No `.planning/` directory | Suggest `/gsd:new-project` |
+| Phase has no CONTEXT.md | Run `/gsd:discuss-phase` |
+| Phase has no PLAN.md files | Run `/gsd:plan-phase` |
+| Phase has plans but no SUMMARY.md | Run `/gsd:execute-phase` |
+| Phase executed but no VERIFICATION.md | Run `/gsd:verify-work` |
+| All phases complete | Suggest `/gsd:complete-milestone` |
+
+---
+
 ## Quality Assurance Features
 
-### 14. Nyquist Validation
+### 15. Nyquist Validation
 
 **Purpose:** Map automated test coverage to phase requirements before any code is written. Named after the Nyquist sampling theorem — ensures a feedback signal exists for every requirement.
 
@@ -412,7 +478,7 @@
 
 ---
 
-### 15. Plan Checking
+### 16. Plan Checking
 
 **Purpose:** Goal-backward verification that plans will achieve phase objectives before execution.
 
@@ -424,7 +490,7 @@
 
 ---
 
-### 16. Post-Execution Verification
+### 17. Post-Execution Verification
 
 **Purpose:** Automated check that the codebase delivers what the phase promised.
 
@@ -436,7 +502,7 @@
 
 ---
 
-### 17. Node Repair
+### 18. Node Repair
 
 **Purpose:** Autonomous recovery when task verification fails during execution.
 
@@ -450,7 +516,7 @@
 
 ---
 
-### 18. Health Validation
+### 19. Health Validation
 
 **Command:** `/gsd:health [--repair]`
 
@@ -465,9 +531,37 @@
 
 ---
 
+### 20. Cross-Phase Regression Gate
+
+**Purpose:** Prevent regressions from compounding across phases by running prior phases' test suites after execution.
+
+**Requirements:**
+- REQ-REGR-01: System MUST run test suites from all completed prior phases after phase execution
+- REQ-REGR-02: System MUST report any test failures as cross-phase regressions
+- REQ-REGR-03: Regressions MUST be surfaced before post-execution verification
+- REQ-REGR-04: System MUST identify which prior phase's tests were broken
+
+**When:** Runs automatically during `/gsd:execute-phase` before the verifier step.
+
+---
+
+### 21. Requirements Coverage Gate
+
+**Purpose:** Ensure all phase requirements are covered by at least one plan before planning completes.
+
+**Requirements:**
+- REQ-COVGATE-01: System MUST extract all requirement IDs assigned to the phase from ROADMAP.md
+- REQ-COVGATE-02: System MUST verify each requirement appears in at least one PLAN.md
+- REQ-COVGATE-03: Uncovered requirements MUST block planning completion
+- REQ-COVGATE-04: System MUST report which specific requirements lack plan coverage
+
+**When:** Runs automatically at the end of `/gsd:plan-phase` after the plan checker loop.
+
+---
+
 ## Context Engineering Features
 
-### 19. Context Window Monitoring
+### 22. Context Window Monitoring
 
 **Purpose:** Prevent context rot by alerting both user and agent when context is running low.
 
@@ -487,22 +581,49 @@
 
 ---
 
-### 20. Session Management
+### 23. Session Management
 
 **Commands:** `/gsd:pause-work`, `/gsd:resume-work`, `/gsd:progress`
 
 **Purpose:** Maintain project continuity across context resets and sessions.
 
 **Requirements:**
-- REQ-SESSION-01: Pause MUST save current position and next steps to `continue-here.md`
-- REQ-SESSION-02: Resume MUST restore full project context from state files
+- REQ-SESSION-01: Pause MUST save current position and next steps to `continue-here.md` and structured `HANDOFF.json`
+- REQ-SESSION-02: Resume MUST restore full project context from HANDOFF.json (preferred) or state files (fallback)
 - REQ-SESSION-03: Progress MUST show current position, next action, and overall completion
 - REQ-SESSION-04: Progress MUST read all state files (STATE.md, ROADMAP.md, phase directories)
 - REQ-SESSION-05: All session operations MUST work after `/clear` (context reset)
+- REQ-SESSION-06: HANDOFF.json MUST include blockers, human actions pending, and in-progress task state
+- REQ-SESSION-07: Resume MUST surface human actions and blockers immediately on session start
 
 ---
 
-### 21. Multi-Agent Orchestration
+### 24. Session Reporting
+
+**Command:** `/gsd:session-report`
+
+**Purpose:** Generate a structured post-session summary document capturing work performed, outcomes achieved, and estimated resource usage.
+
+**Requirements:**
+- REQ-REPORT-01: System MUST gather data from STATE.md, git log, and plan/summary files
+- REQ-REPORT-02: System MUST include commits made, plans executed, and phases progressed
+- REQ-REPORT-03: System MUST estimate token usage and cost based on session activity
+- REQ-REPORT-04: System MUST include active blockers and decisions made
+- REQ-REPORT-05: System MUST recommend next steps
+
+**Produces:** `.planning/reports/SESSION_REPORT.md`
+
+**Report Sections:**
+- Session overview (duration, milestone, phase)
+- Work performed (commits, plans, phases)
+- Outcomes and deliverables
+- Blockers and decisions
+- Resource estimates (tokens, cost)
+- Next steps recommendation
+
+---
+
+### 25. Multi-Agent Orchestration
 
 **Purpose:** Coordinate specialized agents with fresh context windows for each task.
 
@@ -516,7 +637,7 @@
 
 ---
 
-### 22. Model Profiles
+### 26. Model Profiles
 
 **Command:** `/gsd:set-profile <quality|balanced|budget|inherit>`
 
@@ -527,6 +648,7 @@
 - REQ-MODEL-02: Each profile MUST define model tier per agent (see profile table)
 - REQ-MODEL-03: Per-agent overrides MUST take precedence over profile
 - REQ-MODEL-04: `inherit` profile MUST defer to runtime's current model selection
+- REQ-MODEL-04a: `inherit` profile MUST be used when running non-Anthropic providers (OpenRouter, local models) to avoid unexpected API costs
 - REQ-MODEL-05: Profile switch MUST be programmatic (script, not LLM-driven)
 - REQ-MODEL-06: Model resolution MUST happen once per orchestration, not per spawn
 
@@ -551,7 +673,7 @@
 
 ## Brownfield Features
 
-### 23. Codebase Mapping
+### 27. Codebase Mapping
 
 **Command:** `/gsd:map-codebase [area]`
 
@@ -579,7 +701,7 @@
 
 ## Utility Features
 
-### 24. Debug System
+### 28. Debug System
 
 **Command:** `/gsd:debug [description]`
 
@@ -597,7 +719,7 @@
 
 ---
 
-### 25. Todo Management
+### 29. Todo Management
 
 **Commands:** `/gsd:add-todo [desc]`, `/gsd:check-todos`
 
@@ -611,7 +733,7 @@
 
 ---
 
-### 26. Statistics Dashboard
+### 30. Statistics Dashboard
 
 **Command:** `/gsd:stats`
 
@@ -625,7 +747,7 @@
 
 ---
 
-### 27. Update System
+### 31. Update System
 
 **Command:** `/gsd:update`
 
@@ -640,7 +762,7 @@
 
 ---
 
-### 28. Settings Management
+### 32. Settings Management
 
 **Command:** `/gsd:settings`
 
@@ -673,7 +795,7 @@
 
 ---
 
-### 29. Test Generation
+### 33. Test Generation
 
 **Command:** `/gsd:add-tests [N]`
 
@@ -688,7 +810,7 @@
 
 ## Infrastructure Features
 
-### 30. Git Integration
+### 34. Git Integration
 
 **Purpose:** Atomic commits, branching strategies, and clean history management.
 
@@ -714,7 +836,7 @@ fix(03-01): correct auth token expiry
 
 ---
 
-### 31. CLI Tools
+### 35. CLI Tools
 
 **Purpose:** Programmatic utilities for workflows and agents, replacing repetitive inline bash patterns.
 
@@ -729,7 +851,7 @@ fix(03-01): correct auth token expiry
 
 ---
 
-### 32. Multi-Runtime Support
+### 36. Multi-Runtime Support
 
 **Purpose:** Run GSD across 6 different AI coding agent runtimes.
 
@@ -752,7 +874,7 @@ fix(03-01): correct auth token expiry
 
 ---
 
-### 33. Hook System
+### 37. Hook System
 
 **Purpose:** Runtime event hooks for context monitoring, status display, and update checking.
 
@@ -772,7 +894,7 @@ fix(03-01): correct auth token expiry
 
 Color coding: <50% green, <65% yellow, <80% orange, ≥80% red with skull emoji
 
-### 33. Developer Profiling
+### 38. Developer Profiling
 
 **Command:** `/gsd:profile-user [--questionnaire] [--refresh]`
 
@@ -808,7 +930,7 @@ Color coding: <50% green, <65% yellow, <80% orange, ≥80% red with skull emoji
 - REQ-PROF-03: Questionnaire MUST be available as fallback when no session history exists
 - REQ-PROF-04: Generated artifacts MUST be discoverable by Claude Code (CLAUDE.md integration)
 
-### 34. Execution Hardening
+### 39. Execution Hardening
 
 **Purpose:** Three additive quality improvements to the execution pipeline that catch cross-plan failures before they cascade.
 
@@ -827,3 +949,178 @@ After Level 3 wiring verification passes, spot-check individual exports for actu
 - REQ-HARD-01: Pre-wave check MUST verify key-links from all prior wave artifacts before spawning next wave
 - REQ-HARD-02: Cross-plan contract check MUST detect incompatible data transformations between plans
 - REQ-HARD-03: Export spot-check MUST identify dead stores in wired files
+
+---
+
+### 40. Verification Debt Tracking
+
+**Command:** `/gsd:audit-uat`
+
+**Purpose:** Prevent silent loss of UAT/verification items when projects advance past phases with outstanding tests. Surfaces verification debt across all prior phases so items are never forgotten.
+
+**Components:**
+
+**1. Cross-Phase Health Check** (progress.md Step 1.6)
+Every `/gsd:progress` call scans ALL phases in the current milestone for outstanding items (pending, skipped, blocked, human_needed). Displays a non-blocking warning section with actionable links.
+
+**2. `status: partial`** (verify-work.md, UAT.md)
+New UAT status that distinguishes between "session ended" and "all tests resolved". Prevents `status: complete` when tests are still pending, blocked, or skipped without reason.
+
+**3. `result: blocked` with `blocked_by` tag** (verify-work.md, UAT.md)
+New test result type for tests blocked by external dependencies (server, physical device, release build, third-party services). Categorized separately from skipped tests.
+
+**4. HUMAN-UAT.md Persistence** (execute-phase.md)
+When verification returns `human_needed`, items are persisted as a trackable HUMAN-UAT.md file with `status: partial`. Feeds into the cross-phase health check and audit systems.
+
+**5. Phase Completion Warnings** (phase.cjs, transition.md)
+`phase complete` CLI returns verification debt warnings in its JSON output. Transition workflow surfaces outstanding items before confirmation.
+
+**Requirements:**
+- REQ-DEBT-01: System MUST surface outstanding UAT/verification items from ALL prior phases in `/gsd:progress`
+- REQ-DEBT-02: System MUST distinguish incomplete testing (partial) from completed testing (complete)
+- REQ-DEBT-03: System MUST categorize blocked tests with `blocked_by` tags
+- REQ-DEBT-04: System MUST persist human_needed verification items as trackable UAT files
+- REQ-DEBT-05: System MUST warn (non-blocking) during phase completion and transition when verification debt exists
+- REQ-DEBT-06: `/gsd:audit-uat` MUST scan all phases, categorize items by testability, and produce a human test plan
+
+---
+
+## v1.27 Features
+
+### 41. Fast Mode
+
+**Command:** `/gsd:fast [task description]`
+
+**Purpose:** Execute trivial tasks inline without spawning subagents or generating PLAN.md files. For tasks too small to justify planning overhead: typo fixes, config changes, small refactors, forgotten commits, simple additions.
+
+**Requirements:**
+- REQ-FAST-01: System MUST execute the task directly in the current context without subagents
+- REQ-FAST-02: System MUST produce an atomic git commit for the change
+- REQ-FAST-03: System MUST track the task in `.planning/quick/` for state consistency
+- REQ-FAST-04: System MUST NOT be used for tasks requiring research, multi-step planning, or verification
+
+**When to use vs `/gsd:quick`:**
+- `/gsd:fast` — One-sentence tasks executable in under 2 minutes (typo, config change, small addition)
+- `/gsd:quick` — Anything needing research, multi-step planning, or verification
+
+---
+
+### 42. Cross-AI Peer Review
+
+**Command:** `/gsd:review --phase N [--gemini] [--claude] [--codex] [--all]`
+
+**Purpose:** Invoke external AI CLIs (Gemini, Claude, Codex) to independently review phase plans. Produces structured REVIEWS.md with per-reviewer feedback.
+
+**Requirements:**
+- REQ-REVIEW-01: System MUST detect available AI CLIs on the system
+- REQ-REVIEW-02: System MUST build a structured review prompt from phase plans
+- REQ-REVIEW-03: System MUST invoke each selected CLI independently
+- REQ-REVIEW-04: System MUST collect responses and produce `REVIEWS.md`
+- REQ-REVIEW-05: Reviews MUST be consumable by `/gsd:plan-phase --reviews`
+
+**Produces:** `{phase}-REVIEWS.md` — Per-reviewer structured feedback
+
+---
+
+### 43. Backlog Parking Lot
+
+**Commands:** `/gsd:add-backlog <description>`, `/gsd:review-backlog`, `/gsd:plant-seed <idea>`
+
+**Purpose:** Capture ideas that aren't ready for active planning. Backlog items use 999.x numbering to stay outside the active phase sequence. Seeds are forward-looking ideas with trigger conditions that surface automatically at the right milestone.
+
+**Requirements:**
+- REQ-BACKLOG-01: Backlog items MUST use 999.x numbering to stay outside active phase sequence
+- REQ-BACKLOG-02: Phase directories MUST be created immediately so `/gsd:discuss-phase` and `/gsd:plan-phase` work on them
+- REQ-BACKLOG-03: `/gsd:review-backlog` MUST support promote, keep, and remove actions per item
+- REQ-BACKLOG-04: Promoted items MUST be renumbered into the active milestone sequence
+- REQ-SEED-01: Seeds MUST capture the full WHY and WHEN to surface conditions
+- REQ-SEED-02: `/gsd:new-milestone` MUST scan seeds and present matches
+
+**Produces:**
+| Artifact | Description |
+|----------|-------------|
+| `.planning/phases/999.x-slug/` | Backlog item directory |
+| `.planning/seeds/SEED-NNN-slug.md` | Seed with trigger conditions |
+
+---
+
+### 44. Persistent Context Threads
+
+**Command:** `/gsd:thread [name | description]`
+
+**Purpose:** Lightweight cross-session knowledge stores for work that spans multiple sessions but doesn't belong to any specific phase. Lighter weight than `/gsd:pause-work` — no phase state, no plan context.
+
+**Requirements:**
+- REQ-THREAD-01: System MUST support create, list, and resume modes
+- REQ-THREAD-02: Threads MUST be stored in `.planning/threads/` as markdown files
+- REQ-THREAD-03: Thread files MUST include Goal, Context, References, and Next Steps sections
+- REQ-THREAD-04: Resuming a thread MUST load its full context into the current session
+- REQ-THREAD-05: Threads MUST be promotable to phases or backlog items
+
+**Produces:** `.planning/threads/{slug}.md` — Persistent context thread
+
+---
+
+### 45. PR Branch Filtering
+
+**Command:** `/gsd:pr-branch [target branch]`
+
+**Purpose:** Create a clean branch suitable for pull requests by filtering out `.planning/` commits. Reviewers see only code changes, not GSD planning artifacts.
+
+**Requirements:**
+- REQ-PRBRANCH-01: System MUST identify commits that only modify `.planning/` files
+- REQ-PRBRANCH-02: System MUST create a new branch with planning commits filtered out
+- REQ-PRBRANCH-03: Code changes MUST be preserved exactly as committed
+
+---
+
+### 46. Security Hardening
+
+**Purpose:** Defense-in-depth security for GSD's planning artifacts. Because GSD generates markdown files that become LLM system prompts, user-controlled text flowing into these files is a potential indirect prompt injection vector.
+
+**Components:**
+
+**1. Centralized Security Module** (`security.cjs`)
+- Path traversal prevention — validates file paths resolve within the project directory
+- Prompt injection detection — scans for known injection patterns in user-supplied text
+- Safe JSON parsing — catches malformed input before state corruption
+- Field name validation — prevents injection through config field names
+- Shell argument validation — sanitizes user text before shell interpolation
+
+**2. Prompt Injection Guard Hook** (`gsd-prompt-guard.js`)
+PreToolUse hook that scans Write/Edit calls targeting `.planning/` for injection patterns. Advisory-only — logs detection for awareness without blocking legitimate operations.
+
+**3. Workflow Guard Hook** (`gsd-workflow-guard.js`)
+PreToolUse hook that detects when Claude attempts file edits outside a GSD workflow context. Advises using `/gsd:quick` or `/gsd:fast` instead of direct edits. Configurable via `hooks.workflow_guard` (default: false).
+
+**4. CI-Ready Injection Scanner** (`prompt-injection-scan.test.cjs`)
+Test suite that scans all agent, workflow, and command files for embedded injection vectors.
+
+**Requirements:**
+- REQ-SEC-01: All user-supplied file paths MUST be validated against the project directory
+- REQ-SEC-02: Prompt injection patterns MUST be detected before text enters planning artifacts
+- REQ-SEC-03: Security hooks MUST be advisory-only (never block legitimate operations)
+- REQ-SEC-04: JSON parsing of user input MUST catch malformed data gracefully
+- REQ-SEC-05: macOS `/var` → `/private/var` symlink resolution MUST be handled in path validation
+
+---
+
+### 47. Multi-Repo Workspace Support
+
+**Purpose:** Auto-detection and project root resolution for monorepos and multi-repo setups. Supports workspaces where `.planning/` may need to resolve across repository boundaries.
+
+**Requirements:**
+- REQ-MULTIREPO-01: System MUST auto-detect multi-repo workspace configuration
+- REQ-MULTIREPO-02: System MUST resolve project root across repository boundaries
+- REQ-MULTIREPO-03: Executor MUST record per-repo commit hashes in multi-repo mode
+
+---
+
+### 48. Discussion Audit Trail
+
+**Purpose:** Auto-generate `DISCUSSION-LOG.md` during `/gsd:discuss-phase` for full audit trail of decisions made during discussion.
+
+**Requirements:**
+- REQ-DISCLOG-01: System MUST auto-generate DISCUSSION-LOG.md during discuss-phase
+- REQ-DISCLOG-02: Log MUST capture questions asked, options presented, and decisions made
+- REQ-DISCLOG-03: Decision IDs MUST enable traceability from discuss-phase to plan-phase

@@ -51,7 +51,11 @@ describe('execute-phase command: active flags are explicit', () => {
       'context should forbid inferring flags from documentation alone'
     );
     assert.ok(
-      content.includes('If neither token appears, run the standard full-phase execution flow'),
+      content.includes('`--interactive` is active only if the literal `--interactive` token is present in `$ARGUMENTS`'),
+      'context should apply the same active-flag rule to --interactive'
+    );
+    assert.ok(
+      content.includes('If none of these tokens appear, run the standard full-phase execution flow'),
       'context should define the no-flags fallback behavior'
     );
   });

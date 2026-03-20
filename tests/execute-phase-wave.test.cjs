@@ -23,12 +23,13 @@ describe('execute-phase command: --wave flag', () => {
     assert.ok(fs.existsSync(COMMAND_PATH), 'commands/gsd/execute-phase.md should exist');
   });
 
-  test('argument-hint includes --wave and --gaps-only', () => {
+  test('argument-hint includes --wave, --gaps-only, and --interactive', () => {
     const content = fs.readFileSync(COMMAND_PATH, 'utf-8');
     const hintLine = content.split('\n').find(l => l.includes('argument-hint'));
     assert.ok(hintLine, 'should have argument-hint line');
     assert.ok(hintLine.includes('--wave N'), 'argument-hint should include --wave N');
     assert.ok(hintLine.includes('--gaps-only'), 'argument-hint should keep --gaps-only');
+    assert.ok(hintLine.includes('--interactive'), 'argument-hint should preserve --interactive');
   });
 
   test('objective describes wave-filter execution', () => {
